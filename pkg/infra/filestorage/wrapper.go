@@ -246,7 +246,7 @@ func (b wrapper) CreateFolder(ctx context.Context, path string) error {
 }
 
 func (b wrapper) DeleteFolder(ctx context.Context, path string) error {
-	if err := b.assureOperationIsAllowed(OperationDelete); err != nil {
+	if err := b.assureOperationIsAllowed(OperationDeleteFolder); err != nil {
 		return err
 	}
 

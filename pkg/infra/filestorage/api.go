@@ -8,12 +8,9 @@ import (
 	"time"
 )
 
-type StorageName string
 type Operation string
 
 const (
-	StorageNamePublic StorageName = "public"
-
 	OperationGet          Operation = "get"
 	OperationDelete       Operation = "delete"
 	OperationUpsert       Operation = "upsert"
@@ -39,10 +36,6 @@ func Join(parts ...string) string {
 
 	// makes the API more forgiving for clients without compromising safety
 	return multipleDelimiters.ReplaceAllString(joinedPath, Delimiter)
-}
-
-func belongsToStorage(path string, storageName StorageName) bool {
-	return strings.HasPrefix(path, Delimiter+string(storageName))
 }
 
 type File struct {

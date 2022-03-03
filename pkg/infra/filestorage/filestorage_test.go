@@ -36,11 +36,11 @@ func TestFilestorage_removeStoragePrefix(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%s%s", "absolute: ", tt.name), func(t *testing.T) {
-			require.Equal(t, tt.expected, removeStoragePrefix(Delimiter+tt.path))
+			require.Equal(t, tt.expected, removeBackendNamePrefix(Delimiter+tt.path))
 		})
 
 		t.Run(fmt.Sprintf("%s%s", "relative: ", tt.name), func(t *testing.T) {
-			require.Equal(t, tt.expected, removeStoragePrefix(tt.path))
+			require.Equal(t, tt.expected, removeBackendNamePrefix(tt.path))
 		})
 	}
 }

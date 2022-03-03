@@ -78,7 +78,7 @@ type service struct {
 	backendByName map[string]FileStorage
 }
 
-func removeStoragePrefix(path string) string {
+func removeBackendNamePrefix(path string) string {
 	path = strings.TrimPrefix(path, Delimiter)
 	if path == Delimiter || path == "" {
 		return Delimiter
@@ -100,84 +100,103 @@ func removeStoragePrefix(path string) string {
 	return strings.Join(split, Delimiter)
 }
 
-func (b service) getBackend(path string) (FileStorage, string, error) {
-	if err := validatePath(path); err != nil {
-		return nil, "", err
-	}
-
+func (b service) getBackend(path string) (FileStorage, string, string, error) {
 	for backendName, backend := range b.backendByName {
-		if strings.HasPrefix(path, Delimiter+backendName) {
-			b.log.Info("Backend found!", "path", path, "backend", backendName)
-			return backend, removeStoragePrefix(path), nil
+		if strings.HasPrefix(path, Delimiter+backendName) || backendName == path {
+			backendSpecificPath := removeBackendNamePrefix(path)
+			if err := validatePath(backendSpecificPath); err != nil {
+				return nil, "", "", err
+			}
+			return backend, backendSpecificPath, backendName, nil
 		}
 	}
 
-	b.log.Info("Backend not found", "path", path)
-	return b.dummyBackend, path, nil
+	if err := validatePath(path); err != nil {
+		return nil, "", "", err
+	}
+	b.log.Warn("Backend not found", "path", path)
+	return b.dummyBackend, path, "", nil
 }
 
 func (b service) Get(ctx context.Context, path string) (*File, error) {
-	backend, newPath, err := b.getBackend(path)
+	backend, backendSpecificPath, backendName, err := b.getBackend(path)
 	if err != nil {
 		return nil, err
 	}
 
-	return backend.Get(ctx, newPath)
+	file, err := backend.Get(ctx, backendSpecificPath)
+	if file != nil {
+		file.FullPath = Join(backendName, file.FullPath)
+	}
+	return file, err
 }
 
 func (b service) Delete(ctx context.Context, path string) error {
-	backend, newPath, err := b.getBackend(path)
+	backend, backendSpecificPath, _, err := b.getBackend(path)
 	if err != nil {
 		return err
 	}
 
-	return backend.Delete(ctx, newPath)
+	return backend.Delete(ctx, backendSpecificPath)
 }
 
 func (b service) Upsert(ctx context.Context, file *UpsertFileCommand) error {
-	backend, newPath, err := b.getBackend(file.Path)
+	backend, backendSpecificPath, _, err := b.getBackend(file.Path)
 	if err != nil {
 		return err
 	}
 
-	file.Path = newPath
+	file.Path = backendSpecificPath
 	return backend.Upsert(ctx, file)
 }
 
 func (b service) ListFiles(ctx context.Context, path string, cursor *Paging, options *ListOptions) (*ListFilesResponse, error) {
-	backend, newPath, err := b.getBackend(path)
+	backend, backendSpecificPath, backendName, err := b.getBackend(path)
 	if err != nil {
 		return nil, err
 	}
 
-	return backend.ListFiles(ctx, newPath, cursor, options)
+	resp, err := backend.ListFiles(ctx, backendSpecificPath, cursor, options)
+	if resp != nil && resp.Files != nil {
+		for i := range resp.Files {
+			resp.Files[i].FullPath = Join(backendName, resp.Files[i].FullPath)
+		}
+	}
+	return resp, err
 }
 
 func (b service) ListFolders(ctx context.Context, path string, options *ListOptions) ([]FileMetadata, error) {
-	backend, newPath, err := b.getBackend(path)
+	backend, backendSpecificPath, backendName, err := b.getBackend(path)
 	if err != nil {
 		return nil, err
 	}
 
-	return backend.ListFolders(ctx, newPath, options)
+	folders, err := backend.ListFolders(ctx, backendSpecificPath, options)
+	if folders != nil {
+		for i := range folders {
+			folders[i].FullPath = Join(backendName, folders[i].FullPath)
+		}
+	}
+
+	return folders, err
 }
 
 func (b service) CreateFolder(ctx context.Context, path string) error {
-	backend, newPath, err := b.getBackend(path)
+	backend, backendSpecificPath, _, err := b.getBackend(path)
 	if err != nil {
 		return err
 	}
 
-	return backend.CreateFolder(ctx, newPath)
+	return backend.CreateFolder(ctx, backendSpecificPath)
 }
 
 func (b service) DeleteFolder(ctx context.Context, path string) error {
-	backend, newPath, err := b.getBackend(path)
+	backend, backendSpecificPath, _, err := b.getBackend(path)
 	if err != nil {
 		return err
 	}
 
-	return backend.DeleteFolder(ctx, newPath)
+	return backend.DeleteFolder(ctx, backendSpecificPath)
 }
 
 func (b service) close() error {
