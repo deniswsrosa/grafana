@@ -21,6 +21,14 @@ const (
 )
 
 func ProvideService(features featuremgmt.FeatureToggles, cfg *setting.Cfg) (FileStorage, error) {
+	logger := log.New("fileStorageLogger")
+	if features.IsEnabled(featuremgmt.FlagFileStoreApi) {
+		return &service{
+			grafanaDsStorage: &dummyFileStorage{},
+			log:              logger,
+		}, nil
+	}
+
 	grafanaDsStorageLogger := log.New("grafanaDsStorage")
 
 	path := fmt.Sprintf("file://%s", cfg.StaticRootPath)
@@ -41,9 +49,8 @@ func ProvideService(features featuremgmt.FeatureToggles, cfg *setting.Cfg) (File
 		"upload/",
 	}
 
-	var grafanaDsStorage FileStorage
-	if features.IsEnabled(featuremgmt.FlagFileStoreApi) {
-		grafanaDsStorage = &wrapper{
+	return &service{
+		grafanaDsStorage: &wrapper{
 			log: grafanaDsStorageLogger,
 			wrapped: cdkBlobStorage{
 				log:        grafanaDsStorageLogger,
@@ -51,14 +58,8 @@ func ProvideService(features featuremgmt.FeatureToggles, cfg *setting.Cfg) (File
 				rootFolder: "",
 			},
 			pathFilters: &PathFilters{allowedPrefixes: prefixes},
-		}
-	} else {
-		grafanaDsStorage = &dummyFileStorage{}
-	}
-
-	return &service{
-		grafanaDsStorage: grafanaDsStorage,
-		log:              log.New("fileStorageService"),
+		},
+		log: logger,
 	}, nil
 }
 
