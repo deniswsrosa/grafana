@@ -19,9 +19,10 @@ var (
 )
 
 type wrapper struct {
-	log         log.Logger
-	wrapped     FileStorage
-	pathFilters *PathFilters
+	log                 log.Logger
+	wrapped             FileStorage
+	pathFilters         *PathFilters
+	supportedOperations []Operation
 }
 
 var (
@@ -91,7 +92,24 @@ func (b wrapper) validatePath(path string) error {
 	return nil
 }
 
+func (b wrapper) assureOperationIsAllowed(operation Operation) error {
+	if b.supportedOperations == nil {
+		return nil
+	}
+
+	for _, allowedOperation := range b.supportedOperations {
+		if allowedOperation == operation {
+			return nil
+		}
+	}
+	return ErrOperationNotSupported
+}
+
 func (b wrapper) Get(ctx context.Context, path string) (*File, error) {
+	if err := b.assureOperationIsAllowed(OperationGet); err != nil {
+		return nil, err
+	}
+
 	if err := b.validatePath(path); err != nil {
 		return nil, err
 	}
@@ -103,6 +121,10 @@ func (b wrapper) Get(ctx context.Context, path string) (*File, error) {
 	return b.wrapped.Get(ctx, path)
 }
 func (b wrapper) Delete(ctx context.Context, path string) error {
+	if err := b.assureOperationIsAllowed(OperationDelete); err != nil {
+		return err
+	}
+
 	if err := b.validatePath(path); err != nil {
 		return err
 	}
@@ -126,6 +148,10 @@ func detectContentType(path string, originalGuess string) string {
 }
 
 func (b wrapper) Upsert(ctx context.Context, file *UpsertFileCommand) error {
+	if err := b.assureOperationIsAllowed(OperationUpsert); err != nil {
+		return err
+	}
+
 	if err := b.validatePath(file.Path); err != nil {
 		return err
 	}
@@ -172,6 +198,10 @@ func (b wrapper) withDefaults(options *ListOptions, folderQuery bool) *ListOptio
 }
 
 func (b wrapper) ListFiles(ctx context.Context, path string, paging *Paging, options *ListOptions) (*ListFilesResponse, error) {
+	if err := b.assureOperationIsAllowed(OperationListFiles); err != nil {
+		return nil, err
+	}
+
 	if err := b.validatePath(path); err != nil {
 		return nil, err
 	}
@@ -188,6 +218,10 @@ func (b wrapper) ListFiles(ctx context.Context, path string, paging *Paging, opt
 }
 
 func (b wrapper) ListFolders(ctx context.Context, path string, options *ListOptions) ([]FileMetadata, error) {
+	if err := b.assureOperationIsAllowed(OperationListFolders); err != nil {
+		return nil, err
+	}
+
 	if err := b.validatePath(path); err != nil {
 		return nil, err
 	}
@@ -196,6 +230,10 @@ func (b wrapper) ListFolders(ctx context.Context, path string, options *ListOpti
 }
 
 func (b wrapper) CreateFolder(ctx context.Context, path string) error {
+	if err := b.assureOperationIsAllowed(OperationCreateFolder); err != nil {
+		return err
+	}
+
 	if err := b.validatePath(path); err != nil {
 		return err
 	}
@@ -208,6 +246,10 @@ func (b wrapper) CreateFolder(ctx context.Context, path string) error {
 }
 
 func (b wrapper) DeleteFolder(ctx context.Context, path string) error {
+	if err := b.assureOperationIsAllowed(OperationDelete); err != nil {
+		return err
+	}
+
 	if err := b.validatePath(path); err != nil {
 		return err
 	}
