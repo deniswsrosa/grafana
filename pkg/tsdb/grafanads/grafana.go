@@ -32,6 +32,8 @@ const DatasourceID = -1
 // Grafana DS command.
 const DatasourceUID = "grafana"
 
+const publicFilestorageBackend = "public"
+
 // Make sure Service implements required interfaces.
 // This is important to do since otherwise we will only get a
 // not implemented error response from plugin at runtime.
@@ -116,14 +118,13 @@ func (s *Service) CheckHealth(_ context.Context, _ *backend.CheckHealthRequest) 
 	}, nil
 }
 
-func (s *Service) getDirectoryFrame(p string, details bool) (*data.Frame, error) {
+func (s *Service) getDirectoryFrame(path string, details bool) (*data.Frame, error) {
 	// Name() string       // base name of the file
 	// Size() int64        // length in bytes for regular files; system-dependent for others
 	// Mode() FileMode     // file mode bits
 	// ModTime() time.Time // modification time
 	// IsDir() bool        // abbreviation for Mode().IsDir()
 	ctx := context.Background()
-	path := filestorage.Join(string(filestorage.StorageNamePublic), p)
 	folders, err := s.fs.ListFolders(ctx, path, &filestorage.ListOptions{Recursive: false})
 	if err != nil {
 		s.log.Error("failed when listing folders", "path", path, "err", err)
@@ -187,10 +188,9 @@ func (s *Service) doListQuery(query backend.DataQuery) backend.DataResponse {
 
 	path := q.Path
 	if path == "" {
-		rootPath := filestorage.Join(string(filestorage.StorageNamePublic))
-		folders, err := s.fs.ListFolders(context.Background(), rootPath, nil)
+		folders, err := s.fs.ListFolders(context.Background(), publicFilestorageBackend, nil)
 		if err != nil {
-			s.log.Error("failed when listing folders", "path", rootPath, "err", err)
+			s.log.Error("failed when listing folders", "path", publicFilestorageBackend, "err", err)
 			response.Error = errors.New("unknown error")
 			return response
 		}
@@ -202,6 +202,7 @@ func (s *Service) doListQuery(query backend.DataQuery) backend.DataResponse {
 		mtype.Name = "mediaType"
 		for i, f := range folders {
 			names.Set(i, f.FullPath)
+			s.log.Info("setting full path", "name", f.Name, "path", f.FullPath)
 			mtype.Set(i, "directory")
 		}
 		frame := data.NewFrame("", names, mtype)
